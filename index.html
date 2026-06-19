@@ -845,11 +845,23 @@
       } });
     }
     for (const b of bullets) {
-      const p = project(b.x, b.y, EN_H);
-      const rad = clamp((b.super ? 5 : 3.5) * p.s, 1, 16);
-      sprites.push({ Z: p.Z, fn: () => {
+      // Player shots emanate from the drawn muzzle and converge toward the
+      // vanishing point as they travel away — NOT via the raw near-plane
+      // projection (whose scale explodes and flings off-center shots sideways).
+      const far = project(b.x, player.y - 760, EN_H);
+      const t = clamp((player.y - b.y) / (player.y + 200), 0, 1); // 0 at muzzle -> 1 far
+      const mx = CX + (b.x - CX) * 0.55, my = BASE_H - 72;
+      const sx = mx + (far.sx - mx) * t;
+      const sy = my + (far.sy - my) * t;
+      const Zb = (player.y - b.y) * 1.06 + 36;
+      const rad = clamp((b.super ? 6 : 4) * (1 - t * 0.7), 1.2, 14);
+      sprites.push({ Z: Zb, fn: () => {
+        ctx.save();
+        ctx.shadowColor = b.super ? "#ff8a1f" : "#ffd86b";
+        ctx.shadowBlur = 10;
         ctx.fillStyle = b.super ? "#ff8a1f" : "#ffd86b";
-        ctx.beginPath(); ctx.arc(p.sx, p.sy, rad, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx, sy, rad, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
       } });
     }
     for (const b of enemyBullets) {
@@ -892,14 +904,14 @@
   }
 
   function drawPlayer3D() {
-    // aim guide showing the column your shots travel up
-    const aN = project(player.x, player.y, EN_H);
+    // aim guide showing the column your shots travel up (muzzle -> vanishing point)
     const aF = project(player.x, player.y - 760, EN_H);
+    const aNx = CX + (player.x - CX) * 0.55, aNy = BASE_H - 72;
     ctx.save();
     ctx.setLineDash([6, 8]);
     ctx.strokeStyle = player.superTimer > 0 ? "rgba(255,138,31,.5)" : "rgba(255,203,46,.22)";
     ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(aN.sx, aN.sy); ctx.lineTo(aF.sx, aF.sy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(aNx, aNy); ctx.lineTo(aF.sx, aF.sy); ctx.stroke();
     ctx.restore();
 
     if (player.invuln > 0 && player.superTimer === 0 && (frame >> 2) % 2 === 0) return; // blink
