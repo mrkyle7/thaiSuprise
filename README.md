@@ -29,9 +29,20 @@ no servers. Open it and play instantly, on **mobile or desktop**.
 | ------ | ------ | ------- |
 | Move   | **Drag** anywhere on screen | **← / →** (or **A / D**) |
 | Fire   | **Tap & hold** (auto-fires) | **Space** (or **↑ / W**) |
+| 3D mode | Flip the **🕶️ 3D Immersive** toggle | Toggle, or press **3** anytime |
 | Start / restart | Tap the button | Tap the button or **Enter** |
 
 That's it — one finger to play.
+
+## 🕶️ 3D Immersive Mode
+
+Flip the **🕶️ 3D Immersive Mode** toggle on the start screen (or press **3**
+at any time) to drop into a first-person-style perspective: the chilli swarm
+**looms down a corridor straight at your wok**, spice drops rush toward you and
+swell as they approach, and a perspective grid floor + warp-speed starfield pull
+you into the heat. Same controls, same gameplay — just a lot more in-your-face.
+Your choice of 2D / 3D is remembered between sessions. It's all rendered with a
+tiny custom perspective projector, so there are **still zero dependencies**.
 
 ## 🌶️ How to play
 
@@ -63,6 +74,8 @@ Because the game is a single static `index.html`, the simplest hosting is
 ## 🛠️ Tech
 
 - Plain HTML5 `<canvas>` + vanilla JavaScript (no frameworks).
+- Two renderers from one game loop: a 2D classic view and a custom
+  perspective-projected **3D** view — no WebGL, no Three.js, no CDN.
 - Resolution-independent rendering that scales to any screen.
 - Emoji-based sprites, so it looks great everywhere with zero image assets.
 

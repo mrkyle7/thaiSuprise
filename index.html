@@ -73,6 +73,23 @@
   .btn:active { transform: translateY(5px); box-shadow: 0 3px 0 #b85a00, 0 6px 12px rgba(0,0,0,.5); }
   .legend { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; margin-top:18px; font-size: clamp(13px,3.6vw,17px); }
   .legend div { background: rgba(255,255,255,.06); padding:8px 14px; border-radius:12px; }
+  .toggle3d {
+    display:flex; align-items:center; gap:12px;
+    margin-top:22px; cursor:pointer; user-select:none;
+    font-size: clamp(14px,4vw,18px); font-weight:700; color:#ffd9a0;
+    background: rgba(255,255,255,.06); padding:10px 18px; border-radius:40px;
+  }
+  .toggle3d input { position:absolute; opacity:0; width:0; height:0; }
+  .toggle3d .track {
+    position:relative; width:50px; height:28px; border-radius:20px;
+    background:#5a2418; transition:background .2s ease; flex:none;
+  }
+  .toggle3d .knob {
+    position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%;
+    background:#ffd9a0; transition:transform .2s ease;
+  }
+  .toggle3d input:checked + .track { background:#e01b00; }
+  .toggle3d input:checked + .track .knob { transform:translateX(22px); background:var(--gold); }
   .pulse { animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
   .credit { position:fixed; bottom:8px; width:100%; text-align:center; font-size:11px; color:#ff9b7a; opacity:.6; z-index:5; }
@@ -98,7 +115,13 @@
       <div>📱 <b>Drag</b> to move</div>
       <div>👆 <b>Tap</b> / hold to fire</div>
       <div>⌨️ <b>← →</b> + <b>Space</b></div>
+      <div>🕶️ <b>3</b> toggles 3D</div>
     </div>
+    <label class="toggle3d" id="toggle3d">
+      <input type="checkbox" id="mode3d" />
+      <span class="track"><span class="knob"></span></span>
+      <span class="lbl">🕶️ 3D Immersive Mode</span>
+    </label>
     <button id="startBtn" class="btn pulse">START COOKING</button>
   </div>
 
@@ -175,6 +198,10 @@
   let enemyStepDown = false;
   let enemyBaseSpeed = 0.5;
   let frame = 0;
+
+  // 3D immersive render mode (rendering only — game logic stays 2D)
+  let render3D = false;
+  try { render3D = localStorage.getItem("thaiSurprise3D") === "1"; } catch (e) {}
 
   // input
   const keys = { left: false, right: false, fire: false };
@@ -692,7 +719,202 @@
                : "SPICE METER", BASE_W / 2, my - 4);
   }
 
+  // ============================================================
+  //  3D IMMERSIVE RENDERER (rendering only — game logic stays 2D)
+  //  A tiny custom perspective projector: the game's vertical axis
+  //  becomes depth, so the chilli swarm looms down a corridor at you.
+  // ============================================================
+  const CX = BASE_W / 2;
+  const CAM = { focal: 330, h: 130, horizon: BASE_H * 0.30 };
+  const EN_H = 30;   // height of floating sprites above the ground plane
+
+  // project a game-space point (+ height above ground) to the screen
+  function project(gx, gy, yh) {
+    let Z = (player.y - gy) * 1.06 + 36;
+    if (Z < 12) Z = 12;
+    const s = CAM.focal / Z;
+    return { sx: CX + (gx - CX) * s, sy: CAM.horizon + (CAM.h - yh) * s, s, Z };
+  }
+
+  // hyperspace "spice warp" starfield streaking from the vanishing point
+  let stars3D = [];
+  for (let i = 0; i < 70; i++) {
+    stars3D.push({ a: Math.random() * Math.PI * 2, r: rand(10, 360), spd: rand(0.012, 0.05) });
+  }
+
+  function drawBackground3D() {
+    // sky (spice nebula) above the horizon
+    let sky = ctx.createLinearGradient(0, 0, 0, CAM.horizon);
+    sky.addColorStop(0, "#2a0606");
+    sky.addColorStop(1, "#6e1a08");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, BASE_W, CAM.horizon);
+    // ground below the horizon
+    let grd = ctx.createLinearGradient(0, CAM.horizon, 0, BASE_H);
+    grd.addColorStop(0, "#3a0d08");
+    grd.addColorStop(1, "#070303");
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, CAM.horizon, BASE_W, BASE_H - CAM.horizon);
+
+    // warp stars radiating from the vanishing point
+    const vx = CX, vy = CAM.horizon;
+    for (const st of stars3D) {
+      const r2 = st.r * (1 + st.spd * 8);
+      const c = Math.cos(st.a), s = Math.sin(st.a);
+      const x1 = vx + c * st.r, y1 = vy + s * st.r;
+      const x2 = vx + c * r2, y2 = vy + s * r2;
+      ctx.strokeStyle = "rgba(255,150,90," + clamp(st.r / 420, 0.05, 0.7) + ")";
+      ctx.lineWidth = clamp(st.r / 240, 0.4, 2);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      st.r = r2 * (1 + st.spd);
+      if (x2 < -40 || x2 > BASE_W + 40 || y2 < -40 || y2 > BASE_H + 40) {
+        st.a = Math.random() * Math.PI * 2; st.r = rand(8, 40);
+      }
+    }
+    ctx.lineWidth = 1;
+
+    // perspective grid floor — depth lines
+    ctx.strokeStyle = "rgba(255,90,40,.28)";
+    for (let k = 0; k <= 16; k++) {
+      const p = project(CX, player.y - k * 50, 0);
+      ctx.globalAlpha = clamp(1 - k / 17, 0.08, 0.5);
+      ctx.beginPath(); ctx.moveTo(0, p.sy); ctx.lineTo(BASE_W, p.sy); ctx.stroke();
+    }
+    // converging rail lines
+    for (let off = -240; off <= 240; off += 60) {
+      const near = project(CX + off, player.y + 30, 0);
+      const far = project(CX + off, player.y - 760, 0);
+      ctx.globalAlpha = 0.22;
+      ctx.beginPath(); ctx.moveTo(near.sx, near.sy); ctx.lineTo(far.sx, far.sy); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function emojiGlow(ch, x, y, size, color) {
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = Math.min(20, size * 0.4);
+    emoji(ch, x, y, size);
+    ctx.restore();
+  }
+
+  function render3DScene() {
+    drawBackground3D();
+
+    // collect all world sprites, then paint far -> near
+    const sprites = [];
+
+    for (const e of enemies) {
+      const p = project(e.x, e.y + Math.sin(e.wobble) * 3, EN_H);
+      const sz = clamp(30 * p.s, 8, 170);
+      sprites.push({ Z: p.Z, fn: () => emojiGlow(CHILLI_TYPES[e.type].emoji, p.sx, p.sy, sz, CHILLI_TYPES[e.type].color) });
+    }
+    for (const m of mysteries) {
+      const p = project(m.x, m.y, 78);
+      const sz = clamp(34 * p.s, 10, 150);
+      sprites.push({ Z: p.Z, fn: () => emojiGlow("🛺", p.sx, p.sy, sz, "#ffcb2e") });
+    }
+    for (const pu of powerups) {
+      const p = project(pu.x, pu.y, EN_H);
+      const sz = clamp(26 * p.s, 8, 130);
+      sprites.push({ Z: p.Z, fn: () => {
+        if (pu.kind === "super") { emojiGlow("🌶️", p.sx, p.sy, sz, "#ff8a1f"); emoji("🔥", p.sx + sz * 0.32, p.sy - sz * 0.3, sz * 0.6); }
+        else emojiGlow("🥭", p.sx, p.sy, sz, "#ffcb2e");
+      } });
+    }
+    for (const b of bullets) {
+      const p = project(b.x, b.y, EN_H);
+      const rad = clamp((b.super ? 5 : 3.5) * p.s, 1, 16);
+      sprites.push({ Z: p.Z, fn: () => {
+        ctx.fillStyle = b.super ? "#ff8a1f" : "#ffd86b";
+        ctx.beginPath(); ctx.arc(p.sx, p.sy, rad, 0, Math.PI * 2); ctx.fill();
+      } });
+    }
+    for (const b of enemyBullets) {
+      const p = project(b.x, b.y, EN_H);
+      const rad = clamp(5 * p.s, 1.5, 22);
+      sprites.push({ Z: p.Z, fn: () => {
+        ctx.save(); ctx.shadowColor = "#ff3b1f"; ctx.shadowBlur = 12;
+        ctx.fillStyle = "#ff3b1f";
+        ctx.beginPath(); ctx.arc(p.sx, p.sy, rad, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(255,210,60,.8)";
+        ctx.beginPath(); ctx.arc(p.sx, p.sy - rad * 0.3, rad * 0.4, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      } });
+    }
+    for (const pt of particles) {
+      const p = project(pt.x, pt.y, 24);
+      const sz = clamp(pt.size * p.s, 1, 10);
+      sprites.push({ Z: p.Z, fn: () => {
+        ctx.globalAlpha = Math.max(0, pt.life / pt.max);
+        ctx.fillStyle = pt.color; ctx.fillRect(p.sx, p.sy, sz, sz); ctx.globalAlpha = 1;
+      } });
+    }
+
+    sprites.sort((a, b) => b.Z - a.Z);
+    for (const s of sprites) s.fn();
+
+    // floaters (text) on top, projected
+    for (const f of floaters) {
+      const p = project(f.x, f.y, 50);
+      ctx.globalAlpha = clamp(f.life / 40, 0, 1);
+      ctx.fillStyle = f.color;
+      ctx.font = "bold " + clamp(16 * p.s, 10, 30) + "px 'Trebuchet MS', sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(f.text, p.sx, p.sy);
+    }
+    ctx.globalAlpha = 1;
+
+    drawPlayer3D();
+    drawHUD();
+  }
+
+  function drawPlayer3D() {
+    // aim guide showing the column your shots travel up
+    const aN = project(player.x, player.y, EN_H);
+    const aF = project(player.x, player.y - 760, EN_H);
+    ctx.save();
+    ctx.setLineDash([6, 8]);
+    ctx.strokeStyle = player.superTimer > 0 ? "rgba(255,138,31,.5)" : "rgba(255,203,46,.22)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(aN.sx, aN.sy); ctx.lineTo(aF.sx, aF.sy); ctx.stroke();
+    ctx.restore();
+
+    if (player.invuln > 0 && player.superTimer === 0 && (frame >> 2) % 2 === 0) return; // blink
+
+    // foreground cockpit ship (parallax follow)
+    const px = CX + (player.x - CX) * 0.55;
+    const py = BASE_H - 58;
+    ctx.save();
+    if (player.superTimer > 0) {
+      ctx.shadowColor = "#ff8a1f"; ctx.shadowBlur = 30;
+      for (let i = 0; i < 3; i++) emoji("🔥", px + rand(-28, 28), py - 42 + rand(-6, 6), rand(22, 34));
+    } else if (player.powerTimer > 0) {
+      ctx.shadowColor = "#ff3b1f"; ctx.shadowBlur = 22;
+    }
+    emoji("🛼", px, py + 30, 48);
+    emoji("🍳", px, py, 82);
+    ctx.restore();
+
+    // bottom vignette for cockpit depth
+    let vg = ctx.createLinearGradient(0, BASE_H - 120, 0, BASE_H);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,.55)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, BASE_H - 120, BASE_W, 120);
+  }
+
   function render() {
+    if (render3D) {
+      // background3D clears the canvas itself
+      ctx.clearRect(0, 0, BASE_W, BASE_H);
+      if (state === STATE.PLAY || state === STATE.OVER) {
+        render3DScene();
+      } else {
+        drawBackground3D();
+      }
+      return;
+    }
     drawBackground();
     if (state === STATE.PLAY || state === STATE.OVER) {
       drawEnemies();
@@ -725,6 +947,7 @@
       e.preventDefault();
     }
     if (e.code === "Enter" && state !== STATE.PLAY) startGame();
+    if (e.code === "Digit3" || e.code === "KeyV") setMode3D(!render3D);
   });
   window.addEventListener("keyup", (e) => {
     if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
@@ -773,6 +996,16 @@
   const bestLine = document.getElementById("bestLine");
   document.getElementById("startBtn").addEventListener("click", startGame);
   document.getElementById("againBtn").addEventListener("click", startGame);
+
+  // 3D mode toggle
+  const mode3dEl = document.getElementById("mode3d");
+  function setMode3D(v) {
+    render3D = !!v;
+    if (mode3dEl) mode3dEl.checked = render3D;
+    try { localStorage.setItem("thaiSurprise3D", render3D ? "1" : "0"); } catch (e) {}
+  }
+  setMode3D(render3D); // sync UI with stored preference
+  if (mode3dEl) mode3dEl.addEventListener("change", () => setMode3D(mode3dEl.checked));
 
 })();
 </script>
