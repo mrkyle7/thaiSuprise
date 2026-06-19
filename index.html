@@ -71,6 +71,28 @@
     transition: transform .06s ease, box-shadow .06s ease;
   }
   .btn:active { transform: translateY(5px); box-shadow: 0 3px 0 #b85a00, 0 6px 12px rgba(0,0,0,.5); }
+  .btn.secondary {
+    margin-top: 14px;
+    font-size: clamp(15px, 4vw, 19px);
+    padding: 12px 30px;
+    color: #ffeede;
+    background: linear-gradient(180deg, #9a4a2a, #6e2f17);
+    box-shadow: 0 6px 0 #46200f, 0 10px 20px rgba(0,0,0,.5);
+  }
+  .btn.secondary:active { transform: translateY(4px); box-shadow: 0 2px 0 #46200f, 0 5px 10px rgba(0,0,0,.5); }
+  /* In-game top control bar */
+  .topbar { position: fixed; top: 8px; right: 10px; display: flex; gap: 8px; z-index: 6; }
+  .topbar.hidden { display: none; }
+  .hudbtn {
+    width: 44px; height: 44px;
+    font-size: 20px; font-weight: 800; line-height: 1;
+    border: none; border-radius: 12px;
+    color: #ffd9a0;
+    background: rgba(42,13,13,.82);
+    box-shadow: 0 2px 8px rgba(0,0,0,.5);
+    cursor: pointer;
+  }
+  .hudbtn:active { transform: translateY(1px); }
   .legend { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; margin-top:18px; font-size: clamp(13px,3.6vw,17px); }
   .legend div { background: rgba(255,255,255,.06); padding:8px 14px; border-radius:12px; }
   .toggle3d {
@@ -138,6 +160,13 @@
     <p class="small" id="overMsg">The chillis overwhelmed your cart.</p>
     <div class="small" id="bestLine" style="margin-top:8px;color:#ffcb2e;"></div>
     <button id="againBtn" class="btn">COOK AGAIN</button>
+    <button id="menuBtn" class="btn secondary">↩ MAIN MENU</button>
+  </div>
+
+  <!-- In-game top controls -->
+  <div id="topBar" class="topbar hidden">
+    <button id="pauseBtn" class="hudbtn" aria-label="Pause">⏸</button>
+    <button id="quitBtn" class="hudbtn" aria-label="Quit to menu">✕</button>
   </div>
 
   <div class="credit">Thai Surprise — a spicy space-invaders. Made for mobile & desktop.</div>
@@ -173,6 +202,7 @@
   // ---------- Game State ----------
   const STATE = { MENU: 0, PLAY: 1, OVER: 2 };
   let state = STATE.MENU;
+  let paused = false;
 
   const player = {
     w: 54, h: 30,
@@ -279,12 +309,16 @@
     if (tiltControl) { enableTilt(); wantCalibrate = true; } // re-level to current hold angle
     spawnWave();
     state = STATE.PLAY;
+    setPaused(false);
     startScreen.classList.add("hidden");
     overScreen.classList.add("hidden");
+    topBar.classList.remove("hidden");
   }
 
   function gameOver() {
     state = STATE.OVER;
+    paused = false;
+    topBar.classList.add("hidden");
     if (score > best) {
       best = score;
       try { localStorage.setItem("thaiSurpriseBest", String(best)); } catch (e) {}
@@ -292,6 +326,23 @@
     overScore.textContent = "Score: " + score + "   •   Wave " + wave;
     bestLine.textContent = "🏆 Best: " + best;
     overScreen.classList.remove("hidden");
+  }
+
+  // Return to the start screen from gameplay or game-over
+  function showMenu() {
+    state = STATE.MENU;
+    paused = false;
+    topBar.classList.add("hidden");
+    overScreen.classList.add("hidden");
+    startScreen.classList.remove("hidden");
+  }
+
+  function setPaused(p) {
+    paused = !!p && state === STATE.PLAY;
+    if (pauseBtn) pauseBtn.textContent = paused ? "▶" : "⏸";
+  }
+  function togglePause() {
+    if (state === STATE.PLAY) setPaused(!paused);
   }
 
   // ---------- Firing ----------
@@ -962,10 +1013,23 @@
     }
   }
 
+  function drawPauseOverlay() {
+    ctx.fillStyle = "rgba(10,4,4,.62)";
+    ctx.fillRect(0, 0, BASE_W, BASE_H);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffcb2e";
+    ctx.font = "bold 42px 'Trebuchet MS', sans-serif";
+    ctx.fillText("⏸ PAUSED", BASE_W / 2, BASE_H / 2 - 8);
+    ctx.fillStyle = "#ffd9a0";
+    ctx.font = "16px 'Trebuchet MS', sans-serif";
+    ctx.fillText("Tap ▶ to resume  •  ✕ to quit", BASE_W / 2, BASE_H / 2 + 26);
+  }
+
   // ---------- Main loop ----------
   function loop() {
-    if (state === STATE.PLAY) update();
+    if (state === STATE.PLAY && !paused) update();
     render();
+    if (state === STATE.PLAY && paused) drawPauseOverlay();
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
@@ -982,6 +1046,7 @@
     }
     if (e.code === "Enter" && state !== STATE.PLAY) startGame();
     if (e.code === "Digit3" || e.code === "KeyV") setMode3D(!render3D);
+    if (e.code === "KeyP" || e.code === "Escape") togglePause();
   });
   window.addEventListener("keyup", (e) => {
     if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
@@ -1031,8 +1096,14 @@
   const overScreen = document.getElementById("overScreen");
   const overScore = document.getElementById("overScore");
   const bestLine = document.getElementById("bestLine");
+  const topBar = document.getElementById("topBar");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const quitBtn = document.getElementById("quitBtn");
   document.getElementById("startBtn").addEventListener("click", startGame);
   document.getElementById("againBtn").addEventListener("click", startGame);
+  document.getElementById("menuBtn").addEventListener("click", showMenu);
+  pauseBtn.addEventListener("click", togglePause);
+  quitBtn.addEventListener("click", showMenu);
 
   // 3D mode toggle
   const mode3dEl = document.getElementById("mode3d");

@@ -30,6 +30,7 @@ no servers. Open it and play instantly, on **mobile or desktop**.
 | Move   | **Drag** anywhere on screen, or **📱 tilt** the phone | **← / →** (or **A / D**) |
 | Fire   | **Tap & hold** (auto-fires) | **Space** (or **↑ / W**) |
 | 3D mode | Flip the **🕶️ 3D Immersive** toggle | Toggle, or press **3** anytime |
+| Pause / Quit | **⏸** / **✕** buttons (top-right) | **P** / **Esc** to pause |
 | Start / restart | Tap the button | Tap the button or **Enter** |
 
 That's it — one finger (or a tilt) to play.
