@@ -38,12 +38,13 @@ Your **best score** is saved locally in your browser.
 
 ## 🚀 Enabling GitHub Pages (one-time)
 
-The included workflow (`.github/workflows/pages.yml`) deploys the site
-automatically on every push. To turn it on:
+Because the game is a single static `index.html`, the simplest hosting is
+**classic branch-based Pages** — no build, no workflow:
 
 1. Go to the repo's **Settings → Pages**.
-2. Under **Build and deployment → Source**, choose **GitHub Actions**.
-3. Push (or re-run the workflow) and the game goes live at the Pages URL.
+2. Under **Build and deployment → Source**, choose **Deploy from a branch**.
+3. Set **Branch: `main`**, folder **`/ (root)`**, then **Save**.
+4. Wait ~1 minute — the game goes live at `https://mrkyle7.github.io/thaisuprise/`.
 
 ## 🛠️ Tech
 
