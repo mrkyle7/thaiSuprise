@@ -984,11 +984,14 @@
   }
   function onDown(clientX) {
     if (state !== STATE.PLAY) return;
-    pointerActive = true;
+    pointerActive = true; // touch always fires
+    // when tilt steering is on, taps fire only — they don't move the wok
+    if (tiltControl && tiltListening) return;
     pointerTargetX = clamp(canvasX(clientX), player.w / 2, BASE_W - player.w / 2);
   }
   function onMove(clientX) {
     if (!pointerActive) return;
+    if (tiltControl && tiltListening) return; // tilt steers; ignore drag movement
     pointerTargetX = clamp(canvasX(clientX), player.w / 2, BASE_W - player.w / 2);
   }
   function onUp() {
