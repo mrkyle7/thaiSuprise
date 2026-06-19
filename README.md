@@ -27,12 +27,23 @@ no servers. Open it and play instantly, on **mobile or desktop**.
 
 | Action | Mobile | Desktop |
 | ------ | ------ | ------- |
-| Move   | **Drag** anywhere on screen | **← / →** (or **A / D**) |
+| Move   | **Drag** anywhere on screen, or **📱 tilt** the phone | **← / →** (or **A / D**) |
 | Fire   | **Tap & hold** (auto-fires) | **Space** (or **↑ / W**) |
 | 3D mode | Flip the **🕶️ 3D Immersive** toggle | Toggle, or press **3** anytime |
 | Start / restart | Tap the button | Tap the button or **Enter** |
 
-That's it — one finger to play.
+That's it — one finger (or a tilt) to play.
+
+## 📱 Tilt / Gravity Steering
+
+Flip the **📱 Tilt Steering (Gravity)** toggle on the start screen to steer with
+your phone's motion sensor: hold the phone however feels comfortable and **lean
+it left or right** to slide your wok. The resting angle is **auto-calibrated**
+each time a round starts, so you don't have to hold it perfectly flat, and a
+small dead-zone keeps it steady. Touch-dragging always overrides tilt if you
+grab the screen. On iOS the browser asks for motion permission the first time
+(tap **Allow**); if a device has no motion sensor it quietly falls back to
+touch/keys. Your choice is remembered between sessions.
 
 ## 🕶️ 3D Immersive Mode
 

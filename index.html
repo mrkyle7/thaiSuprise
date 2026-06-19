@@ -122,6 +122,12 @@
       <span class="track"><span class="knob"></span></span>
       <span class="lbl">🕶️ 3D Immersive Mode</span>
     </label>
+    <label class="toggle3d" id="toggleTilt">
+      <input type="checkbox" id="modeTilt" />
+      <span class="track"><span class="knob"></span></span>
+      <span class="lbl">📱 Tilt Steering (Gravity)</span>
+    </label>
+    <div class="small" id="tiltNote" style="margin-top:6px;min-height:14px;color:#ff9b7a;"></div>
     <button id="startBtn" class="btn pulse">START COOKING</button>
   </div>
 
@@ -203,6 +209,14 @@
   let render3D = false;
   try { render3D = localStorage.getItem("thaiSurprise3D") === "1"; } catch (e) {}
 
+  // Gravity / tilt steering (device orientation)
+  let tiltControl = false;
+  try { tiltControl = localStorage.getItem("thaiSurpriseTilt") === "1"; } catch (e) {}
+  let tiltListening = false;
+  let tiltGamma = null;     // latest left-right tilt reading (deg)
+  let tiltCenter = 0;       // calibrated "level" angle
+  let wantCalibrate = false;
+
   // input
   const keys = { left: false, right: false, fire: false };
   let pointerActive = false;
@@ -262,6 +276,7 @@
     player.powerTimer = 0;
     player.superTimer = 0;
     pointerTargetX = null;
+    if (tiltControl) { enableTilt(); wantCalibrate = true; } // re-level to current hold angle
     spawnWave();
     state = STATE.PLAY;
     startScreen.classList.add("hidden");
@@ -346,6 +361,13 @@
     if (pointerTargetX !== null) {
       const dx = pointerTargetX - player.x;
       player.x += clamp(dx, -player.speed * 1.8, player.speed * 1.8);
+    }
+    // gravity / tilt steering — touch drag still takes priority when active
+    if (tiltControl && tiltGamma !== null && pointerTargetX === null) {
+      const g = tiltGamma - tiltCenter;          // degrees from level
+      if (Math.abs(g) > 2.5) {                    // small dead zone
+        player.x += clamp(g * 0.3, -player.speed * 1.7, player.speed * 1.7);
+      }
     }
     player.x = clamp(player.x, player.w / 2, BASE_W - player.w / 2);
 
@@ -1006,6 +1028,58 @@
   }
   setMode3D(render3D); // sync UI with stored preference
   if (mode3dEl) mode3dEl.addEventListener("change", () => setMode3D(mode3dEl.checked));
+
+  // ----- Gravity / tilt steering -----
+  const modeTiltEl = document.getElementById("modeTilt");
+  const tiltNote = document.getElementById("tiltNote");
+  function onOrient(e) {
+    if (e.gamma == null) return;
+    // use left-right tilt; account for landscape using beta when gamma is flat
+    let g = e.gamma;
+    if (window.orientation === 90) g = -e.beta;
+    else if (window.orientation === -90) g = e.beta;
+    if (wantCalibrate) { tiltCenter = g; wantCalibrate = false; }
+    tiltGamma = g;
+  }
+  function enableTilt() {
+    if (tiltListening) return;
+    if (!window.DeviceOrientationEvent) {
+      if (tiltNote) tiltNote.textContent = "Tilt not supported on this device.";
+      setTilt(false);
+      return;
+    }
+    const attach = () => {
+      window.addEventListener("deviceorientation", onOrient);
+      tiltListening = true;
+      wantCalibrate = true;
+      if (tiltNote) tiltNote.textContent = "Tilt on — hold your phone level, then lean left / right.";
+    };
+    // iOS 13+ requires explicit permission from a user gesture
+    if (typeof DeviceOrientationEvent.requestPermission === "function") {
+      DeviceOrientationEvent.requestPermission()
+        .then((p) => { if (p === "granted") attach(); else { setTilt(false); if (tiltNote) tiltNote.textContent = "Motion access denied — using touch/keys."; } })
+        .catch(() => { setTilt(false); if (tiltNote) tiltNote.textContent = "Motion access unavailable."; });
+    } else {
+      attach();
+    }
+  }
+  function disableTilt() {
+    if (!tiltListening) return;
+    window.removeEventListener("deviceorientation", onOrient);
+    tiltListening = false;
+    tiltGamma = null;
+    if (tiltNote) tiltNote.textContent = "";
+  }
+  function setTilt(v) {
+    tiltControl = !!v;
+    if (modeTiltEl) modeTiltEl.checked = tiltControl;
+    try { localStorage.setItem("thaiSurpriseTilt", tiltControl ? "1" : "0"); } catch (e) {}
+    if (tiltControl) enableTilt(); else disableTilt();
+  }
+  if (modeTiltEl) {
+    modeTiltEl.checked = tiltControl; // reflect stored pref (listener attaches on gesture)
+    modeTiltEl.addEventListener("change", () => setTilt(modeTiltEl.checked));
+  }
 
 })();
 </script>
