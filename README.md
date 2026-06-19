@@ -1,5 +1,15 @@
 # Thai Surprise 🌶️ — Spicy Invaders
 
+<p align="center">
+  <a href="https://mrkyle7.github.io/thaisuprise/">
+    <img alt="Play Thai Surprise" src="https://img.shields.io/badge/%E2%96%B6%20PLAY%20NOW-Thai%20Surprise%20%F0%9F%8C%B6%EF%B8%8F-e01b00?style=for-the-badge&labelColor=2a0d0d" />
+  </a>
+</p>
+
+<p align="center">
+  <b><a href="https://mrkyle7.github.io/thaisuprise/">👉 mrkyle7.github.io/thaisuprise 👈</a></b>
+</p>
+
 A bite-sized, **Space Invaders–style** arcade game with a **Thai surprise** theme.
 A wave of fiery chillis is descending on your street-food cart — blast them with
 chilli seeds before they reach your wok!
@@ -9,8 +19,8 @@ no servers. Open it and play instantly, on **mobile or desktop**.
 
 ## ▶️ Play now
 
-- **Hosted on GitHub Pages:** once Pages is enabled (see below), play at
-  `https://mrkyle7.github.io/thaisuprise/`
+- **▶️ [Play in your browser](https://mrkyle7.github.io/thaisuprise/)** — `https://mrkyle7.github.io/thaisuprise/`
+  (live once Pages is enabled; see [setup](#-enabling-github-pages-one-time) below).
 - **Locally:** just open `index.html` in any browser, or double-click it.
 
 ## 🎮 Controls (simple & mobile-friendly)
