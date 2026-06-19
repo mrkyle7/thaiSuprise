@@ -40,6 +40,10 @@ That's it — one finger to play.
 - **🧄 Garlic** bulbs are tougher — they take two hits.
 - Fill the **Spice Meter** by destroying chillis to unleash **🔥 Spicy Power**:
   rapid twin-stream fire for a few seconds.
+- A **🛺 golden tuk-tuk** flies across the top now and then. **Shoot it down**,
+  then **grab the 🌶️🔥 token it drops** to trigger **🐉 Dragon Breath** — a
+  temporary superpower with a rapid **5-way fiery spread shot** *and*
+  invincibility for ~8 seconds. (So you can earn it by shooting **and** catching!)
 - Catch a falling **🥭 mango** to cool down, score a bonus, and trigger power fire.
 - You have three lives (🌶️🌶️🌶️). Don't let the chillis reach your wok, and
   dodge the falling spice drops. Each wave gets faster and hotter.

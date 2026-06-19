@@ -91,6 +91,8 @@
       A wave of fiery chillis is descending on your street-food cart!
       Blast them with chilli seeds before they reach your wok.
       Catch the falling <b>🥭 mango</b> to cool down and grab a bonus.
+      Shoot the flying <b>🛺 golden tuk-tuk</b> and grab its token for
+      <b>🐉 Dragon Breath</b> — a temporary 5-way fire blast!
     </p>
     <div class="legend">
       <div>📱 <b>Drag</b> to move</div>
@@ -154,13 +156,15 @@
     invuln: 0,
     spice: 0,          // power meter -> rapid fire when full
     powerTimer: 0,
+    superTimer: 0,     // DRAGON BREATH superpower (temporary)
   };
 
   let bullets = [];      // player chilli seeds
   let enemyBullets = []; // enemy spice drops
   let enemies = [];
   let particles = [];
-  let powerups = [];     // mangoes
+  let powerups = [];     // mangoes + super tokens
+  let mysteries = [];    // flying golden tuk-tuks (shoot for a superpower)
   let floaters = [];     // floating score text
 
   let score = 0;
@@ -223,12 +227,13 @@
 
   function startGame() {
     score = 0; wave = 0; frame = 0;
-    bullets = []; enemyBullets = []; particles = []; powerups = []; floaters = [];
+    bullets = []; enemyBullets = []; particles = []; powerups = []; mysteries = []; floaters = [];
     player.x = BASE_W / 2;
     player.lives = 3;
     player.invuln = 90;
     player.spice = 0;
     player.powerTimer = 0;
+    player.superTimer = 0;
     pointerTargetX = null;
     spawnWave();
     state = STATE.PLAY;
@@ -249,6 +254,17 @@
 
   // ---------- Firing ----------
   function fire() {
+    if (player.superTimer > 0) {
+      // DRAGON BREATH: fiery 5-way spread
+      for (const vx of [-4.5, -2.2, 0, 2.2, 4.5]) {
+        const b = makeBullet(player.x);
+        b.vx = vx;
+        b.super = true;
+        b.w = 9; b.h = 16;
+        bullets.push(b);
+      }
+      return;
+    }
     const rapid = player.powerTimer > 0;
     if (rapid) {
       bullets.push(makeBullet(player.x - 10));
@@ -258,7 +274,20 @@
     }
   }
   function makeBullet(x) {
-    return { x, y: player.y - player.h / 2, w: 6, h: 14, vy: -9 };
+    return { x, y: player.y - player.h / 2, w: 6, h: 14, vy: -9, vx: 0 };
+  }
+
+  // Flying bonus: a golden tuk-tuk that crosses the top. Shoot it for a superpower.
+  function spawnMystery() {
+    const fromLeft = Math.random() < 0.5;
+    mysteries.push({
+      x: fromLeft ? -30 : BASE_W + 30,
+      y: rand(48, 70),
+      w: 40, h: 26,
+      vx: (fromLeft ? 1 : -1) * rand(1.6, 2.4),
+      hp: 2,
+      wob: Math.random() * Math.PI * 2,
+    });
   }
 
   function enemyFire(e) {
@@ -295,11 +324,12 @@
 
     if (player.invuln > 0) player.invuln--;
     if (player.powerTimer > 0) player.powerTimer--;
+    if (player.superTimer > 0) player.superTimer--;
 
     // ----- firing -----
     if (player.cooldown > 0) player.cooldown--;
     const wantFire = keys.fire || pointerActive;
-    const rate = player.powerTimer > 0 ? 8 : player.fireRate;
+    const rate = player.superTimer > 0 ? 6 : (player.powerTimer > 0 ? 8 : player.fireRate);
     if (wantFire && player.cooldown === 0) {
       fire();
       player.cooldown = rate;
@@ -309,7 +339,19 @@
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
       b.y += b.vy;
-      if (b.y < -20) bullets.splice(i, 1);
+      b.x += b.vx || 0;
+      if (b.y < -20 || b.x < -20 || b.x > BASE_W + 20) bullets.splice(i, 1);
+    }
+
+    // ----- flying mystery tuk-tuk -----
+    if (!mysteries.length && wave >= 1 && frame % 600 === 360 && Math.random() < 0.9) {
+      spawnMystery();
+    }
+    for (let i = mysteries.length - 1; i >= 0; i--) {
+      const m = mysteries[i];
+      m.x += m.vx;
+      m.wob += 0.2;
+      if (m.x < -50 || m.x > BASE_W + 50) mysteries.splice(i, 1);
     }
     for (let i = enemyBullets.length - 1; i >= 0; i--) {
       const b = enemyBullets[i];
@@ -384,8 +426,30 @@
       }
     }
 
+    // ----- player bullets vs flying tuk-tuk -----
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      for (let j = mysteries.length - 1; j >= 0; j--) {
+        const m = mysteries[j];
+        if (rectsHit(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, m.x - m.w / 2, m.y - m.h / 2, m.w, m.h)) {
+          bullets.splice(i, 1);
+          m.hp--;
+          spawnParticles(b.x, b.y, "#ffcb2e", 8);
+          if (m.hp <= 0) {
+            score += 75;
+            addFloater(m.x, m.y, "🛺 +75", "#ffcb2e");
+            spawnParticles(m.x, m.y, "#ffcb2e", 20);
+            // drop the DRAGON BREATH super token
+            powerups.push({ x: m.x, y: m.y, w: 30, h: 30, vy: 2.0, kind: "super" });
+            mysteries.splice(j, 1);
+          }
+          break;
+        }
+      }
+    }
+
     // ----- enemy bullets vs player -----
-    if (player.invuln === 0) {
+    if (player.invuln === 0 && player.superTimer === 0) {
       for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const b = enemyBullets[i];
         if (rectsHit(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h,
@@ -405,11 +469,18 @@
       if (rectsHit(p.x - p.w / 2, p.y - p.h / 2, p.w, p.h,
                    player.x - player.w / 2, player.y - player.h / 2, player.w, player.h)) {
         powerups.splice(i, 1);
-        score += 50;
-        addFloater(player.x, player.y - 30, "🥭 +50 COOL", "#ffd86b");
-        if (player.lives < 5) { /* mango can grant an extra life occasionally */ }
-        player.powerTimer = Math.max(player.powerTimer, 180);
-        spawnParticles(player.x, player.y, "#ffcb2e", 12);
+        if (p.kind === "super") {
+          // DRAGON BREATH superpower for ~8 seconds
+          player.superTimer = 480;
+          score += 100;
+          addFloater(player.x, player.y - 34, "🐉 DRAGON BREATH!", "#ff8a1f");
+          spawnParticles(player.x, player.y, "#ff8a1f", 26);
+        } else {
+          score += 50;
+          addFloater(player.x, player.y - 30, "🥭 +50 COOL", "#ffd86b");
+          player.powerTimer = Math.max(player.powerTimer, 180);
+          spawnParticles(player.x, player.y, "#ffcb2e", 12);
+        }
       }
     }
 
@@ -435,7 +506,7 @@
   }
 
   function loseLife(reset) {
-    if (player.invuln > 0) return;
+    if (player.invuln > 0 || player.superTimer > 0) return;
     player.lives--;
     player.invuln = 110;
     spawnParticles(player.x, player.y, "#ff3b1f", 22);
@@ -474,18 +545,36 @@
   }
 
   function drawPlayer() {
-    if (player.invuln > 0 && (frame >> 2) % 2 === 0) return; // blink
+    if (player.invuln > 0 && player.superTimer === 0 && (frame >> 2) % 2 === 0) return; // blink
     const { x, y } = player;
-    // wok / cart base
     ctx.save();
     // glow when powered
-    if (player.powerTimer > 0) {
+    if (player.superTimer > 0) {
+      ctx.shadowColor = "#ff8a1f";
+      ctx.shadowBlur = 26;
+      // flickering dragon flames around the wok
+      for (let i = 0; i < 3; i++) {
+        const fx = x + rand(-16, 16);
+        emoji("🔥", fx, y - 24 + rand(-4, 4), rand(16, 24));
+      }
+    } else if (player.powerTimer > 0) {
       ctx.shadowColor = "#ff3b1f";
       ctx.shadowBlur = 18;
     }
     emoji("🛼", x, y + 10, 30); // cart wheels hint
     emoji("🍳", x, y - 6, 40);  // the wok
     ctx.restore();
+  }
+
+  function drawMysteries() {
+    for (const m of mysteries) {
+      ctx.save();
+      ctx.shadowColor = "#ffcb2e";
+      ctx.shadowBlur = 16;
+      const bob = Math.sin(m.wob) * 2;
+      emoji("🛺", m.x, m.y + bob, 34);
+      ctx.restore();
+    }
   }
 
   function drawEnemies() {
@@ -498,6 +587,16 @@
   function drawBullets() {
     // player chilli seeds
     for (const b of bullets) {
+      if (b.super) {
+        // fiery dragon-breath bolt
+        ctx.fillStyle = "#ff8a1f";
+        ctx.beginPath();
+        ctx.ellipse(b.x, b.y, 4, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,59,31,.6)";
+        ctx.fillRect(b.x - 2, b.y + 5, 4, 10);
+        continue;
+      }
       ctx.fillStyle = "#ffd86b";
       ctx.beginPath();
       ctx.ellipse(b.x, b.y, 3, 7, 0, 0, Math.PI * 2);
@@ -521,7 +620,16 @@
   function drawPowerups() {
     for (const p of powerups) {
       const bob = Math.sin(frame * 0.15) * 2;
-      emoji("🥭", p.x, p.y + bob, 26);
+      if (p.kind === "super") {
+        ctx.save();
+        ctx.shadowColor = "#ff8a1f";
+        ctx.shadowBlur = 16;
+        emoji("🌶️", p.x, p.y + bob, 26);
+        emoji("🔥", p.x + 9, p.y + bob - 8, 16);
+        ctx.restore();
+      } else {
+        emoji("🥭", p.x, p.y + bob, 26);
+      }
     }
   }
 
@@ -569,20 +677,26 @@
     const mw = 120, mh = 8, mx = BASE_W / 2 - mw / 2, my = 34;
     ctx.fillStyle = "rgba(255,255,255,.15)";
     ctx.fillRect(mx, my, mw, mh);
-    const fillRatio = player.powerTimer > 0 ? (player.powerTimer / 360) : (player.spice / 12);
-    ctx.fillStyle = player.powerTimer > 0 ? "#ffcb2e" : "#ff3b1f";
+    const superOn = player.superTimer > 0;
+    const fillRatio = superOn ? (player.superTimer / 480)
+                    : player.powerTimer > 0 ? (player.powerTimer / 360)
+                    : (player.spice / 12);
+    ctx.fillStyle = superOn ? "#ff8a1f" : player.powerTimer > 0 ? "#ffcb2e" : "#ff3b1f";
     ctx.fillRect(mx, my, mw * clamp(fillRatio, 0, 1), mh);
     ctx.strokeStyle = "rgba(255,255,255,.25)";
     ctx.strokeRect(mx, my, mw, mh);
-    ctx.fillStyle = "#ffd9a0";
+    ctx.fillStyle = superOn ? "#ffcb2e" : "#ffd9a0";
     ctx.font = "10px 'Trebuchet MS', sans-serif";
-    ctx.fillText(player.powerTimer > 0 ? "🔥 SPICY POWER 🔥" : "SPICE METER", BASE_W / 2, my - 4);
+    ctx.fillText(superOn ? "🐉 DRAGON BREATH 🐉"
+               : player.powerTimer > 0 ? "🔥 SPICY POWER 🔥"
+               : "SPICE METER", BASE_W / 2, my - 4);
   }
 
   function render() {
     drawBackground();
     if (state === STATE.PLAY || state === STATE.OVER) {
       drawEnemies();
+      drawMysteries();
       drawPowerups();
       drawBullets();
       drawPlayer();
