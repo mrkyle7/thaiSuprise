@@ -93,6 +93,7 @@
     cursor: pointer;
   }
   .hudbtn:active { transform: translateY(1px); }
+  .btnrow { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-top: 26px; }
   .legend { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; margin-top:18px; font-size: clamp(13px,3.6vw,17px); }
   .legend div { background: rgba(255,255,255,.06); padding:8px 14px; border-radius:12px; }
   .toggle3d {
@@ -169,11 +170,23 @@
     <button id="quitBtn" class="hudbtn" aria-label="Quit to menu">✕</button>
   </div>
 
-  <div class="credit">Thai Surprise — a spicy space-invaders. Made for mobile & desktop.</div>
+  <!-- Quit confirmation -->
+  <div id="confirmScreen" class="overlay hidden">
+    <h1 class="title" style="font-size:clamp(28px,7.5vw,52px)">Quit to menu? 🌶️</h1>
+    <p class="small">Your current run will end and the score won't be saved.</p>
+    <div class="btnrow">
+      <button id="confirmQuitBtn" class="btn">QUIT</button>
+      <button id="cancelQuitBtn" class="btn secondary" style="margin-top:0;">KEEP PLAYING</button>
+    </div>
+  </div>
+
+  <div class="credit">Thai Surprise <span id="version"></span> — a spicy space-invaders. Made for mobile &amp; desktop.</div>
 
 <script>
 (() => {
   "use strict";
+
+  const GAME_VERSION = "1.1.0";
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
@@ -342,6 +355,7 @@
     if (pauseBtn) pauseBtn.textContent = paused ? "▶" : "⏸";
   }
   function togglePause() {
+    if (confirmScreen && !confirmScreen.classList.contains("hidden")) return;
     if (state === STATE.PLAY) setPaused(!paused);
   }
 
@@ -1099,11 +1113,29 @@
   const topBar = document.getElementById("topBar");
   const pauseBtn = document.getElementById("pauseBtn");
   const quitBtn = document.getElementById("quitBtn");
+  const confirmScreen = document.getElementById("confirmScreen");
   document.getElementById("startBtn").addEventListener("click", startGame);
   document.getElementById("againBtn").addEventListener("click", startGame);
   document.getElementById("menuBtn").addEventListener("click", showMenu);
   pauseBtn.addEventListener("click", togglePause);
-  quitBtn.addEventListener("click", showMenu);
+
+  // Quit asks for confirmation so a mis-tap doesn't end your run
+  function openQuitConfirm() {
+    if (state !== STATE.PLAY) return;
+    setPaused(true);
+    confirmScreen.classList.remove("hidden");
+  }
+  function closeQuitConfirm(resume) {
+    confirmScreen.classList.add("hidden");
+    if (resume) setPaused(false);
+  }
+  quitBtn.addEventListener("click", openQuitConfirm);
+  document.getElementById("confirmQuitBtn").addEventListener("click", () => { closeQuitConfirm(false); showMenu(); });
+  document.getElementById("cancelQuitBtn").addEventListener("click", () => closeQuitConfirm(true));
+
+  // Footer version
+  const verEl = document.getElementById("version");
+  if (verEl) verEl.textContent = "v" + GAME_VERSION;
 
   // 3D mode toggle
   const mode3dEl = document.getElementById("mode3d");
