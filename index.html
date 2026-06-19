@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#1a0a0a" />
+<title>Thai Surprise 🌶️ — Spicy Invaders</title>
+<style>
+  :root {
+    --hot: #ff3b1f;
+    --chilli: #e01b00;
+    --leaf: #2faa3f;
+    --gold: #ffcb2e;
+    --bg0: #1a0a0a;
+    --bg1: #2a0d0d;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: radial-gradient(circle at 50% 20%, var(--bg1), var(--bg0) 70%);
+    color: #fff;
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #wrap {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  canvas {
+    display: block;
+    background: linear-gradient(180deg, #200a0a 0%, #0e0505 100%);
+    box-shadow: 0 0 40px rgba(255,59,31,.35), inset 0 0 60px rgba(0,0,0,.6);
+    touch-action: none;
+    max-width: 100%; max-height: 100%;
+  }
+  /* Overlays */
+  .overlay {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    background: radial-gradient(circle at 50% 30%, rgba(60,12,12,.92), rgba(10,4,4,.97));
+    padding: 24px; z-index: 10;
+  }
+  .overlay.hidden { display: none; }
+  .title {
+    font-size: clamp(34px, 9vw, 72px);
+    font-weight: 900;
+    letter-spacing: 1px;
+    background: linear-gradient(180deg, var(--gold), var(--hot) 70%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 4px 20px rgba(255,59,31,.4);
+    margin: 0;
+    line-height: 1.05;
+  }
+  .sub { font-size: clamp(15px, 4vw, 22px); color: #ffd9a0; margin: 10px 0 4px; }
+  .small { font-size: clamp(12px, 3.4vw, 16px); color: #ffb59a; opacity:.9; max-width: 460px; line-height:1.5; }
+  .btn {
+    margin-top: 26px;
+    font-size: clamp(18px, 5vw, 24px);
+    font-weight: 800;
+    padding: 16px 40px;
+    border: none; border-radius: 50px;
+    color: #2a0606;
+    background: linear-gradient(180deg, var(--gold), #ff8a1f);
+    box-shadow: 0 8px 0 #b85a00, 0 12px 24px rgba(0,0,0,.5);
+    cursor: pointer;
+    transition: transform .06s ease, box-shadow .06s ease;
+  }
+  .btn:active { transform: translateY(5px); box-shadow: 0 3px 0 #b85a00, 0 6px 12px rgba(0,0,0,.5); }
+  .legend { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; margin-top:18px; font-size: clamp(13px,3.6vw,17px); }
+  .legend div { background: rgba(255,255,255,.06); padding:8px 14px; border-radius:12px; }
+  .pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+  .credit { position:fixed; bottom:8px; width:100%; text-align:center; font-size:11px; color:#ff9b7a; opacity:.6; z-index:5; }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="game"></canvas>
+  </div>
+
+  <!-- Start screen -->
+  <div id="startScreen" class="overlay">
+    <h1 class="title">THAI&nbsp;SURPRISE 🌶️</h1>
+    <div class="sub">Spicy Invaders</div>
+    <p class="small">
+      A wave of fiery chillis is descending on your street-food cart!
+      Blast them with chilli seeds before they reach your wok.
+      Catch the falling <b>🥭 mango</b> to cool down and grab a bonus.
+    </p>
+    <div class="legend">
+      <div>📱 <b>Drag</b> to move</div>
+      <div>👆 <b>Tap</b> / hold to fire</div>
+      <div>⌨️ <b>← →</b> + <b>Space</b></div>
+    </div>
+    <button id="startBtn" class="btn pulse">START COOKING</button>
+  </div>
+
+  <!-- Game over screen -->
+  <div id="overScreen" class="overlay hidden">
+    <h1 class="title" id="overTitle">TOO SPICY! 🔥</h1>
+    <div class="sub" id="overScore">Score: 0</div>
+    <p class="small" id="overMsg">The chillis overwhelmed your cart.</p>
+    <div class="small" id="bestLine" style="margin-top:8px;color:#ffcb2e;"></div>
+    <button id="againBtn" class="btn">COOK AGAIN</button>
+  </div>
+
+  <div class="credit">Thai Surprise — a spicy space-invaders. Made for mobile & desktop.</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+
+  // Logical resolution (game coordinates). We scale to fit the screen.
+  const BASE_W = 480;
+  const BASE_H = 720;
+  let scale = 1, viewW = BASE_W, viewH = BASE_H;
+
+  function resize() {
+    const maxW = window.innerWidth;
+    const maxH = window.innerHeight;
+    scale = Math.min(maxW / BASE_W, maxH / BASE_H);
+    viewW = Math.round(BASE_W * scale);
+    viewH = Math.round(BASE_H * scale);
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(viewW * dpr);
+    canvas.height = Math.round(viewH * dpr);
+    canvas.style.width = viewW + "px";
+    canvas.style.height = viewH + "px";
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---------- Game State ----------
+  const STATE = { MENU: 0, PLAY: 1, OVER: 2 };
+  let state = STATE.MENU;
+
+  const player = {
+    w: 54, h: 30,
+    x: BASE_W / 2,
+    y: BASE_H - 60,
+    speed: 6,
+    cooldown: 0,
+    fireRate: 18,      // frames between auto shots while firing
+    lives: 3,
+    invuln: 0,
+    spice: 0,          // power meter -> rapid fire when full
+    powerTimer: 0,
+  };
+
+  let bullets = [];      // player chilli seeds
+  let enemyBullets = []; // enemy spice drops
+  let enemies = [];
+  let particles = [];
+  let powerups = [];     // mangoes
+  let floaters = [];     // floating score text
+
+  let score = 0;
+  let best = 0;
+  try { best = parseInt(localStorage.getItem("thaiSurpriseBest") || "0", 10) || 0; } catch (e) {}
+  let wave = 0;
+  let enemyDir = 1;
+  let enemyStepDown = false;
+  let enemyBaseSpeed = 0.5;
+  let frame = 0;
+
+  // input
+  const keys = { left: false, right: false, fire: false };
+  let pointerActive = false;
+  let pointerTargetX = null;
+
+  // ---------- Helpers ----------
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function rectsHit(ax, ay, aw, ah, bx, by, bw, bh) {
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+  }
+
+  // Enemy archetypes — different chillis
+  const CHILLI_TYPES = [
+    { emoji: "🌶️", hp: 1, score: 10, color: "#ff3b1f" }, // red chilli
+    { emoji: "🫑", hp: 1, score: 15, color: "#3fae46" },  // green
+    { emoji: "🧄", hp: 2, score: 25, color: "#f3e6c9" },  // garlic (tougher)
+  ];
+
+  function spawnWave() {
+    enemies = [];
+    wave++;
+    const cols = 7;
+    const rows = Math.min(3 + Math.floor(wave / 2), 5);
+    const marginX = 50, gapX = (BASE_W - marginX * 2) / (cols - 1);
+    const startY = 90, gapY = 52;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        // tougher types nearer the top
+        let typeIdx = 0;
+        if (r === 0 && wave >= 2) typeIdx = 2;
+        else if (r <= 1) typeIdx = 1;
+        const t = CHILLI_TYPES[typeIdx];
+        enemies.push({
+          x: marginX + c * gapX,
+          y: startY + r * gapY,
+          w: 34, h: 34,
+          type: typeIdx,
+          hp: t.hp,
+          baseX: marginX + c * gapX,
+          wobble: Math.random() * Math.PI * 2,
+        });
+      }
+    }
+    enemyDir = 1;
+    enemyBaseSpeed = 0.45 + wave * 0.12;
+  }
+
+  function startGame() {
+    score = 0; wave = 0; frame = 0;
+    bullets = []; enemyBullets = []; particles = []; powerups = []; floaters = [];
+    player.x = BASE_W / 2;
+    player.lives = 3;
+    player.invuln = 90;
+    player.spice = 0;
+    player.powerTimer = 0;
+    pointerTargetX = null;
+    spawnWave();
+    state = STATE.PLAY;
+    startScreen.classList.add("hidden");
+    overScreen.classList.add("hidden");
+  }
+
+  function gameOver() {
+    state = STATE.OVER;
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem("thaiSurpriseBest", String(best)); } catch (e) {}
+    }
+    overScore.textContent = "Score: " + score + "   •   Wave " + wave;
+    bestLine.textContent = "🏆 Best: " + best;
+    overScreen.classList.remove("hidden");
+  }
+
+  // ---------- Firing ----------
+  function fire() {
+    const rapid = player.powerTimer > 0;
+    if (rapid) {
+      bullets.push(makeBullet(player.x - 10));
+      bullets.push(makeBullet(player.x + 10));
+    } else {
+      bullets.push(makeBullet(player.x));
+    }
+  }
+  function makeBullet(x) {
+    return { x, y: player.y - player.h / 2, w: 6, h: 14, vy: -9 };
+  }
+
+  function enemyFire(e) {
+    enemyBullets.push({ x: e.x, y: e.y + e.h / 2, w: 8, h: 14, vy: rand(2.6, 3.8), wob: Math.random() * 6 });
+  }
+
+  function spawnParticles(x, y, color, n = 10) {
+    for (let i = 0; i < n; i++) {
+      particles.push({
+        x, y,
+        vx: rand(-3, 3), vy: rand(-3, 3),
+        life: rand(20, 38), max: 38,
+        color, size: rand(2, 5),
+      });
+    }
+  }
+
+  function addFloater(x, y, text, color) {
+    floaters.push({ x, y, text, color, life: 50 });
+  }
+
+  // ---------- Update ----------
+  function update() {
+    frame++;
+
+    // ----- player movement -----
+    if (keys.left) player.x -= player.speed;
+    if (keys.right) player.x += player.speed;
+    if (pointerTargetX !== null) {
+      const dx = pointerTargetX - player.x;
+      player.x += clamp(dx, -player.speed * 1.8, player.speed * 1.8);
+    }
+    player.x = clamp(player.x, player.w / 2, BASE_W - player.w / 2);
+
+    if (player.invuln > 0) player.invuln--;
+    if (player.powerTimer > 0) player.powerTimer--;
+
+    // ----- firing -----
+    if (player.cooldown > 0) player.cooldown--;
+    const wantFire = keys.fire || pointerActive;
+    const rate = player.powerTimer > 0 ? 8 : player.fireRate;
+    if (wantFire && player.cooldown === 0) {
+      fire();
+      player.cooldown = rate;
+    }
+
+    // ----- bullets -----
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      b.y += b.vy;
+      if (b.y < -20) bullets.splice(i, 1);
+    }
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+      const b = enemyBullets[i];
+      b.y += b.vy;
+      b.x += Math.sin((frame + b.wob) * 0.1) * 0.6;
+      if (b.y > BASE_H + 20) enemyBullets.splice(i, 1);
+    }
+
+    // ----- enemy movement (block march) -----
+    let minX = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const e of enemies) {
+      if (e.x < minX) minX = e.x;
+      if (e.x > maxX) maxX = e.x;
+      if (e.y > maxY) maxY = e.y;
+    }
+    const speedUp = 1 + (1 - enemies.length / 35) * 1.5; // faster as fewer remain
+    const step = enemyBaseSpeed * speedUp * enemyDir;
+    let hitEdge = false;
+    if (enemies.length) {
+      if (maxX + step > BASE_W - 30 || minX + step < 30) hitEdge = true;
+    }
+    if (hitEdge) {
+      enemyDir *= -1;
+      for (const e of enemies) e.y += 22;
+    } else {
+      for (const e of enemies) {
+        e.x += step;
+        e.wobble += 0.05;
+      }
+    }
+
+    // enemies fire randomly, scaled by wave
+    if (enemies.length && frame % Math.max(20, 70 - wave * 4) === 0) {
+      const shooter = enemies[(Math.random() * enemies.length) | 0];
+      enemyFire(shooter);
+    }
+
+    // lose if enemies reach the cart
+    if (maxY > player.y - 30 && enemies.length) {
+      loseLife(true);
+    }
+
+    // ----- collisions: player bullets vs enemies -----
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        const e = enemies[j];
+        if (rectsHit(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, e.x - e.w / 2, e.y - e.h / 2, e.w, e.h)) {
+          bullets.splice(i, 1);
+          e.hp--;
+          spawnParticles(b.x, b.y, CHILLI_TYPES[e.type].color, 6);
+          if (e.hp <= 0) {
+            const sc = CHILLI_TYPES[e.type].score;
+            score += sc;
+            addFloater(e.x, e.y, "+" + sc, "#ffd86b");
+            spawnParticles(e.x, e.y, CHILLI_TYPES[e.type].color, 14);
+            // chance to drop a cooling mango
+            if (Math.random() < 0.10) {
+              powerups.push({ x: e.x, y: e.y, w: 26, h: 26, vy: 2.2, kind: "mango" });
+            }
+            // build spice meter
+            player.spice = clamp(player.spice + 1, 0, 12);
+            if (player.spice >= 12) {
+              player.powerTimer = 360; // 6s rapid fire
+              player.spice = 0;
+              addFloater(player.x, player.y - 30, "SPICY POWER!", "#ff3b1f");
+            }
+            enemies.splice(j, 1);
+          }
+          break;
+        }
+      }
+    }
+
+    // ----- enemy bullets vs player -----
+    if (player.invuln === 0) {
+      for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        const b = enemyBullets[i];
+        if (rectsHit(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h,
+                     player.x - player.w / 2, player.y - player.h / 2, player.w, player.h)) {
+          enemyBullets.splice(i, 1);
+          loseLife(false);
+          break;
+        }
+      }
+    }
+
+    // ----- powerups -----
+    for (let i = powerups.length - 1; i >= 0; i--) {
+      const p = powerups[i];
+      p.y += p.vy;
+      if (p.y > BASE_H + 20) { powerups.splice(i, 1); continue; }
+      if (rectsHit(p.x - p.w / 2, p.y - p.h / 2, p.w, p.h,
+                   player.x - player.w / 2, player.y - player.h / 2, player.w, player.h)) {
+        powerups.splice(i, 1);
+        score += 50;
+        addFloater(player.x, player.y - 30, "🥭 +50 COOL", "#ffd86b");
+        if (player.lives < 5) { /* mango can grant an extra life occasionally */ }
+        player.powerTimer = Math.max(player.powerTimer, 180);
+        spawnParticles(player.x, player.y, "#ffcb2e", 12);
+      }
+    }
+
+    // ----- particles & floaters -----
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx; p.y += p.vy; p.vy += 0.06; p.life--;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+    for (let i = floaters.length - 1; i >= 0; i--) {
+      const f = floaters[i];
+      f.y -= 0.6; f.life--;
+      if (f.life <= 0) floaters.splice(i, 1);
+    }
+
+    // ----- next wave -----
+    if (enemies.length === 0) {
+      score += 100;
+      addFloater(BASE_W / 2, BASE_H / 2, "WAVE CLEAR! +100", "#2faa3f");
+      player.invuln = 60;
+      spawnWave();
+    }
+  }
+
+  function loseLife(reset) {
+    if (player.invuln > 0) return;
+    player.lives--;
+    player.invuln = 110;
+    spawnParticles(player.x, player.y, "#ff3b1f", 22);
+    enemyBullets = [];
+    if (reset) {
+      // push enemies back up a bit so it's recoverable
+      for (const e of enemies) e.y -= 80;
+    }
+    if (player.lives <= 0) gameOver();
+  }
+
+  // ---------- Render ----------
+  let starField = [];
+  for (let i = 0; i < 40; i++) {
+    starField.push({ x: Math.random() * BASE_W, y: Math.random() * BASE_H, s: rand(0.5, 2), spd: rand(0.2, 0.8) });
+  }
+
+  function drawBackground() {
+    ctx.clearRect(0, 0, BASE_W, BASE_H);
+    // gentle moving "spice flecks"
+    for (const st of starField) {
+      st.y += st.spd;
+      if (st.y > BASE_H) { st.y = 0; st.x = Math.random() * BASE_W; }
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = "#ff7a4d";
+      ctx.fillRect(st.x, st.y, st.s, st.s);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function emoji(ch, x, y, size) {
+    ctx.font = size + "px serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(ch, x, y);
+  }
+
+  function drawPlayer() {
+    if (player.invuln > 0 && (frame >> 2) % 2 === 0) return; // blink
+    const { x, y } = player;
+    // wok / cart base
+    ctx.save();
+    // glow when powered
+    if (player.powerTimer > 0) {
+      ctx.shadowColor = "#ff3b1f";
+      ctx.shadowBlur = 18;
+    }
+    emoji("🛼", x, y + 10, 30); // cart wheels hint
+    emoji("🍳", x, y - 6, 40);  // the wok
+    ctx.restore();
+  }
+
+  function drawEnemies() {
+    for (const e of enemies) {
+      const bob = Math.sin(e.wobble) * 3;
+      emoji(CHILLI_TYPES[e.type].emoji, e.x, e.y + bob, 30);
+    }
+  }
+
+  function drawBullets() {
+    // player chilli seeds
+    for (const b of bullets) {
+      ctx.fillStyle = "#ffd86b";
+      ctx.beginPath();
+      ctx.ellipse(b.x, b.y, 3, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,140,40,.5)";
+      ctx.fillRect(b.x - 1.5, b.y + 4, 3, 8);
+    }
+    // enemy spice drops
+    for (const b of enemyBullets) {
+      ctx.fillStyle = "#ff3b1f";
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,200,40,.7)";
+      ctx.beginPath();
+      ctx.arc(b.x, b.y - 2, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawPowerups() {
+    for (const p of powerups) {
+      const bob = Math.sin(frame * 0.15) * 2;
+      emoji("🥭", p.x, p.y + bob, 26);
+    }
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      ctx.globalAlpha = Math.max(0, p.life / p.max);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawFloaters() {
+    for (const f of floaters) {
+      ctx.globalAlpha = clamp(f.life / 40, 0, 1);
+      ctx.fillStyle = f.color;
+      ctx.font = "bold 16px 'Trebuchet MS', sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawHUD() {
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 20px 'Trebuchet MS', sans-serif";
+    ctx.fillText("Score " + score, 14, 28);
+
+    // lives (chilli hearts)
+    ctx.textAlign = "right";
+    let livesStr = "";
+    for (let i = 0; i < player.lives; i++) livesStr += "🌶️";
+    ctx.font = "18px serif";
+    ctx.fillText(livesStr, BASE_W - 12, 28);
+
+    // wave
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffb59a";
+    ctx.font = "bold 14px 'Trebuchet MS', sans-serif";
+    ctx.fillText("WAVE " + wave, BASE_W / 2, 26);
+
+    // spice meter
+    const mw = 120, mh = 8, mx = BASE_W / 2 - mw / 2, my = 34;
+    ctx.fillStyle = "rgba(255,255,255,.15)";
+    ctx.fillRect(mx, my, mw, mh);
+    const fillRatio = player.powerTimer > 0 ? (player.powerTimer / 360) : (player.spice / 12);
+    ctx.fillStyle = player.powerTimer > 0 ? "#ffcb2e" : "#ff3b1f";
+    ctx.fillRect(mx, my, mw * clamp(fillRatio, 0, 1), mh);
+    ctx.strokeStyle = "rgba(255,255,255,.25)";
+    ctx.strokeRect(mx, my, mw, mh);
+    ctx.fillStyle = "#ffd9a0";
+    ctx.font = "10px 'Trebuchet MS', sans-serif";
+    ctx.fillText(player.powerTimer > 0 ? "🔥 SPICY POWER 🔥" : "SPICE METER", BASE_W / 2, my - 4);
+  }
+
+  function render() {
+    drawBackground();
+    if (state === STATE.PLAY || state === STATE.OVER) {
+      drawEnemies();
+      drawPowerups();
+      drawBullets();
+      drawPlayer();
+      drawParticles();
+      drawFloaters();
+      drawHUD();
+    }
+  }
+
+  // ---------- Main loop ----------
+  function loop() {
+    if (state === STATE.PLAY) update();
+    render();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // ---------- Input handling ----------
+  // Keyboard
+  window.addEventListener("keydown", (e) => {
+    if (e.repeat) return;
+    if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = true;
+    if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = true;
+    if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
+      keys.fire = true;
+      e.preventDefault();
+    }
+    if (e.code === "Enter" && state !== STATE.PLAY) startGame();
+  });
+  window.addEventListener("keyup", (e) => {
+    if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
+    if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = false;
+    if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") keys.fire = false;
+  });
+
+  // Pointer / touch: drag to move, holding fires automatically
+  function canvasX(clientX) {
+    const rect = canvas.getBoundingClientRect();
+    return (clientX - rect.left) / rect.width * BASE_W;
+  }
+  function onDown(clientX) {
+    if (state !== STATE.PLAY) return;
+    pointerActive = true;
+    pointerTargetX = clamp(canvasX(clientX), player.w / 2, BASE_W - player.w / 2);
+  }
+  function onMove(clientX) {
+    if (!pointerActive) return;
+    pointerTargetX = clamp(canvasX(clientX), player.w / 2, BASE_W - player.w / 2);
+  }
+  function onUp() {
+    pointerActive = false;
+    pointerTargetX = null;
+  }
+
+  canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (e.touches.length) onDown(e.touches[0].clientX);
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    if (e.touches.length) onMove(e.touches[0].clientX);
+  }, { passive: false });
+  canvas.addEventListener("touchend", (e) => { e.preventDefault(); onUp(); }, { passive: false });
+  canvas.addEventListener("touchcancel", onUp);
+
+  canvas.addEventListener("mousedown", (e) => onDown(e.clientX));
+  window.addEventListener("mousemove", (e) => onMove(e.clientX));
+  window.addEventListener("mouseup", onUp);
+
+  // Buttons
+  const startScreen = document.getElementById("startScreen");
+  const overScreen = document.getElementById("overScreen");
+  const overScore = document.getElementById("overScore");
+  const bestLine = document.getElementById("bestLine");
+  document.getElementById("startBtn").addEventListener("click", startGame);
+  document.getElementById("againBtn").addEventListener("click", startGame);
+
+})();
+</script>
+</body>
+</html>
