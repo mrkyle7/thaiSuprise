@@ -68,6 +68,9 @@ tiny custom perspective projector, so there are **still zero dependencies**.
   temporary superpower with a rapid **5-way fiery spread shot** *and*
   invincibility for ~8 seconds. (So you can earn it by shooting **and** catching!)
 - Catch a falling **🥭 mango** to cool down, score a bonus, and trigger power fire.
+- **Boss fight:** every **5 armies** you clear, a **🌶️👹 ginormous Chilli Monster**
+  appears — it sweeps across the top and spits **double-size fireballs**. Whittle
+  down its health bar to drop big points (plus a mango and a Dragon Breath token).
 - You have three lives (🌶️🌶️🌶️). Don't let the chillis reach your wok, and
   dodge the falling spice drops. Each wave gets faster and hotter.
 
